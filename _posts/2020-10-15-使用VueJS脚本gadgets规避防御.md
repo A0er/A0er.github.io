@@ -4,24 +4,26 @@ title: 使用VueJS脚本gadgets规避防御
 ---
 
 ## 介紹
-我们发现，流行的JavaScript框架VueJS提供了对网站安全有严重影响的功能。如果您遇到使用Vue的Web应用程序，本篇文章将帮助您识别由gadgets脚本创建的Vue特定XSS向量，您可以使用这些gadgets脚本来利用目标。
 
-gadgets脚本是由框架创建的额外功能，可以导致JavaScript执行。这些功能可以是JavaScript或基于HTML的。gadgets脚本通常对绕过WAF和CSP等防御措施很有用。从开发者的角度来看，了解一个框架或库创建的所有gadgets脚本也是很有用的；当允许用户在自己的Web应用程序中输入时，这些知识可以帮助防止XSS漏洞。在本篇文章中，我们将涵盖从基于表达式的向量到突变XSS（mXSS）等多种技术。
+我们发现，流行的JavaScript框架VueJS提供了对网站安全有严重影响的功能。如果您遇到使用Vue的Web应用程序，本篇文章将帮助您理解由gadgets脚本创建的Vue特定XSS向量，您可以使用这些gadgets脚本来利用目标。
+
+gadgets脚本是一些由框架创建的额外功能，可以导致JavaScript执行。这些功能可以是JavaScript或基于HTML的。gadgets脚本通常对绕过WAF和CSP等防御措施很有用。从开发者的角度来看，了解一个框架或库创建的所有gadgets脚本也是很有用的；当允许用户在自己的Web应用程序中输入时，这些知识可以帮助防止XSS漏洞。在本篇文章中，我们将涵盖从基于表达式的向量到突变XSS（mXSS）等多种技术。
 
 ### 注意
-这里有很多信息!如果你对学习攻击感兴趣，你可能会想读完这本书。但如果你遇到了特定的场景，只是需要一个解决它的向量，你可以直接跳到我们[XSS Cheat Sheet](https://portswigger.net/web-security/cross-site-scripting/cheat-sheet#vuejs-reflected)中新更新的VueJS部分。
+
+这里有很多信息!如果你对学习攻击框架感兴趣，你可能会想读完全部内容。但如果你遇到了特定的场景，只是需要一个解决它的向量，你可以直接跳到我们[XSS Cheat Sheet](https://portswigger.net/web-security/cross-site-scripting/cheat-sheet#vuejs-reflected)中新更新的VueJS部分。
 
 在这篇文章中，我们将涵盖:
 
 1.指令
 
-2.缩短有效载荷
+2.缩短payload
 
 3.事件
 
 4.突变
 
-5.为V3调整有效载荷
+5.适用V3的payload
 
 6.传送
 
@@ -35,7 +37,7 @@ gadgets脚本是由框架创建的额外功能，可以导致JavaScript执行。
 { {toString().constructor.constructor('alert(1)')()} }
 ```
 
-为了找出如何缩减它，我们需要看看我们的向量是如何被转换的。我们查看VueJS源码，搜索Function构造函数的调用。有些情况下，Function构造函数被调用了，但创建的函数却没有。我们跳过了这些实例，因为我们确信这不是我们的代码被转换的地方。[在第11648行，我们最终找到了一个调用生成函数的Function构造函数](https://github.com/vuejs/vue/blob/6fe07ebf5ab3fea1860c59fe7cdd2ec1b760f9b0/src/compiler/to-function.js#L14)。
+为了解决如何缩减它，我们需要看看我们的向量是如何被转换的。我们查看VueJS源码，搜索Function构造函数的调用。有些情况下，Function构造函数被调用了，但创建的函数却没有。我们跳过了这些实例，因为我们确信这不是我们的代码被转换的地方。[在第11648行，我们最终找到了一个调用生成函数的Function构造函数](https://github.com/vuejs/vue/blob/6fe07ebf5ab3fea1860c59fe7cdd2ec1b760f9b0/src/compiler/to-function.js#L14)。
 ```
 return new Function(code)
 ```
@@ -48,16 +50,19 @@ return new Function(code)
 ```
 
 ### 调试VueJS
+
 在我们继续之前，也许应该先快速了解一下我们使用的调试工具。
 
 [Vue Devtools](https://github.com/vuejs/vue-devtools)。官方的浏览器扩展，可以用来调试用VueJS构建的应用。
 
-[Vue-template-compiler](https://www.npmjs.com/package/vue-template-compiler)。将模板编译成渲染函数，这可以帮助我们看到Vue内部如何表示模板。这个工具有一个方便的在线版本，叫做template-explorer。
+[Vue-template-compiler](https://www.npmjs.com/package/vue-template-compiler)。将模板编译成渲染函数，这可以帮助我们看到Vue内部如何表示模板。这个工具有一个方便的在线版本，叫做[template-explorer](https://template-explorer.vuejs.org/)。
 
 我们还不时地重写VueJS原型，添加日志等功能，以便我们可以看到内部发生的事情。
 
 ## VueJS第2版
+
 ### 指令
+
 就像其他框架一样，VueJS中的一些指令让我们的生活变得更轻松.几乎每一个VueJS指令都可以作为一个gadgets来利用。让我们来看一个例子。
 
 #### v-show指令
@@ -258,6 +263,7 @@ document.body.innerHTML+=''
 <svg><svg></svg></svg><b><noscript></noscript><iframe onload="setTimeout(/alert(1)/.source)"></iframe></b>
 ```
 ### 突变和CSP
+
 我们注意到，当CSP被启用时，突变并没有工作，这是因为它们包含了正常的DOM事件处理程序，而它们被CSP阻止了。这是因为它们包含了正常的DOM事件处理程序，它们被CSP阻止了。但是我们有一个想法--如果我们在突变的HTML中注入VueJS的特殊事件会怎样？这将由VueJS渲染，执行我们的代码和自定义事件处理程序，从而绕过CSP。我们不确定突变后的DOM是否会执行这些处理程序，但是，令我们高兴的是，它确实执行了。
 
 首先，我们将突变向量注入图像，并使用VueJS @error事件处理程序。当DOM被突变时，图像会和@error处理程序一起呈现。然后，我们使用特殊的$event对象来获取对window的引用，并执行我们的alert()。
@@ -279,6 +285,7 @@ document.body.innerHTML+=''
 [POC](https://portswigger-labs.net/xss/vue3.php?x=%3Csvg%3E%3Csvg%3E%3Cb%3E%3Cnoscript%3E%26lt;/noscript%26gt;%26lt;iframe%26Tab;onload=alert(1)%26gt;%3C/noscript%3E%3C/b%3E%3C/svg%3E)
 
 ## 改编VueJS 3的payload。
+
 当我们正在进行这项研究时，VueJS 3发布了，并且破坏了许多我们发现的向量。我们决定快速查看一下，看看是否能让它们重新工作。在第3版中，很多代码都发生了变化，例如，Function构造函数被移到了13035行，并且删除了VueJS函数的缩短版，例如_b， 。
 
 在13055行添加断点，我们检查了代码变量的内容。看来VueJS的函数与第2版类似，只是函数名更啰嗦了。我们只需要用较长的形式来替换函数的简写。
@@ -314,6 +321,7 @@ document.body.innerHTML+=''
 <x @click=$event.view.alert(1)>click</x>
 ```
 ### 代码高尔夫V3
+
 我们的向量现在可以在v3中工作，但它们仍然相当长。我们寻找更短的函数名，并注意到有一个叫做_Vue的变量，它在当前的范围内。我们将这个变量传递给Function构造函数，并使用console.log()来检查对象的内容。
 
 { {_createBlock.constructor('x','console.log(x)')(_Vue)} }。
@@ -372,6 +380,7 @@ return function render(_ctx, _cache) {
 <component is=script text=alert(1)>
 ```
 ## 传送
+
 我们在VueJS 3中发现了一个非常有趣的新标签，叫做< teleport>。这个标签允许你通过使用to属性将< teleport>标签的内容转移到任何其他标签，该属性接受一个CSS选择器。
 ```
 <teleport to="#x"><b>test</b></teleport> 
@@ -389,6 +398,7 @@ return function render(_ctx, _cache) {
 <script>
 ```
 元素:
+
 ```
 <teleport to=script:nth-child(2)>alert&lpar;1&rpar;</teleport></div><script></script>
 ```
@@ -418,6 +428,7 @@ return function render(_ctx, _cache) {
 [POC](http://portswigger-labs.net/xss/vue3.php?x=%3Cteleport%20to=script:nth-child(2)%3Ealert%26lpar;1%26rpar;%3C/teleport%3E%3C/div%3E%3Cscript%3E%3C/script%3E)
 
 ### 反向传送
+
 我们还发现了一些东西，我们决定称之为 "反向传送"。我们已经讨论过VueJS有一个<teleport>标签，但如果你在模板表达式中包含一个CSS选择器，你可以将任何其他HTML元素作为目标，并将该元素的内容作为表达式执行。即使目标标签在应用程序边界之外，这也是有效的! 
 
 当我们意识到VueJS会在表达式的整个内容上运行[querySelector](https://github.com/vuejs/vue-next/blob/fbf865d9d4744a0233db1ed6e5543b8f3ef51e8d/packages/vue/src)时，我们都相当震惊，[只要它以#开头](https://github.com/vuejs/vue-next/blob/fbf865d9d4744a0233db1ed6e5543b8f3ef51e8d/packages/vue/src)。下面的片段演示了一个带有CSS查询的表达式，其目标是类为haha的<div>。第二个表达式即使在应用程序边界之外也会被执行。
@@ -438,15 +449,19 @@ app.mount('#app')
 ```
 
 ## 使用案例
+
 在本节中，我们将仔细看看这些脚本小工具可以在哪些方面派上用场。
 
 ### WAF
+
 让我们从Web应用防火墙开始。正如我们已经看到的那样，有相当数量的潜在小工具可以发现。由于Vue也乐于解码HTML实体，所以你很有可能绕过常见的WAF，比如Cloudflare。
 
 ### 过滤器
+
 诸如DOMPurify这样的过滤器，有一套非常好的标签和属性的白名单，以帮助阻止任何被认为不正常的东西。然而，由于它们都允许模板语法，因此在与VueJS等前端框架结合使用时，它们并不能提供强大的XSS攻击保护。
 
 ### CSP
+
 Vue的工作方式是对内容进行词法分析，并将其解析为抽象语法树（AST）。代码作为字符串传递到渲染函数中，由于Function构造函数的eval-like功能，它在那里被执行。这意味着，CSP的定义方式必须允许VueJS和应用程序仍能正常工作。如果它包含unsafe-eval，你可以使用Vue轻松绕过CSP。请注意，对于严格的动态或nonce旁路，unsafe-eval是一个要求。
 
 Unsafe-eval + nonce :
@@ -460,6 +475,7 @@ Unsafe-eval + nonce :
 
 
 ## 结论
+
 我们希望你喜欢我们的文章，就像我们喜欢写它和想出有趣的小工具一样。给查看本帖的开发者和黑客们一些建议。
 
 - 当创建一个JavaScript框架时，或许可以考虑一下你所添加的功能给应用程序带来的攻击面。仔细思考它们可能被使用或滥用的方式。
@@ -468,15 +484,19 @@ Unsafe-eval + nonce :
 
 帖子中讨论的所有向量都已被添加到我们[VueJS部分的XSS攻略中](https://portswigger.net/web-security/cross-site-scripting/cheat-sheet#vuejs-reflected)。
 
-如果你喜欢这篇文章，请告诉我们! 我们有兴趣对VueJS和其他客户端和服务器端框架进行更多的研究。
+如果你喜欢这篇文章，请告诉我们! 
+我们有兴趣对VueJS和其他客户端和服务器端框架进行更多的研究。
 
 关于Lewis
+
 [Lewis Ardern](https://twitter.com/LewisArdern) 是 Synopsys 的副首席顾问。他的主要专业领域是网络安全和安全工程。Lewis 喜欢为各种类型的组织和机构创建和提供网络和 JavaScript 安全等主题的安全培训。他也是Leeds Ethical Hacking Society的创始人，并帮助开发了bXSS和SecGen等项目。
 
 关于PwnFunction
+
 [PwnFunction](https://twitter.com/PwnFunction) 白天是一名独立的 AppSec 顾问，晚上则是一名研究员。他以其[YouTube频道](https://www.youtube.com/c/PwnFunction)而闻名。Pwn 的兴趣主要是围绕着[应用程序安全](https://portswigger.net/burp/application-security-testing)，但他也对低级别的爵士乐感兴趣，如二进制和浏览器利用。除了计算机之外，他还喜欢数学、科学和哲学。
 
 
 
 作者：[Gareth Heyes](https://portswigger.net/research/gareth-heyes)
+
 原文地址：https://portswigger.net/research/evading-defences-using-vuejs-script-gadgets
